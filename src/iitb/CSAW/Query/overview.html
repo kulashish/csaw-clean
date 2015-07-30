@@ -1,0 +1,23 @@
+<html><head><title>Search</title></head>
+<body>
+<p>This package includes the query parser, the query AST classes, and various
+<em>decorations</em> on the query AST. Some examples of decoration are</p>
+<ul>
+<li>The stemmed form of a token literal obtained by a suitable
+term processor.</li>
+<li>Matchers for tokens or phrases.</li>
+<li>The corpus and document frequencies of a literal token, phrase
+or entity that appears in the query.</li>
+<li>Entity or type IDs obtained from a catalog.</li>
+</ul>
+<p>For now, we will implement decorations as mutable members to be written by
+suitable decorators, despite the usual risks of globally visible mutable
+members.</p>
+
+<p>Apart from decoration prior to query execution, some AST nodes have
+mutable members that are assigned during query execution. Accessing these
+members is not thread-safe. If the same query AST has to be used with
+multiple documents or indexes in the same process, a deep copy should be 
+made first.</p>
+</body>
+</html>

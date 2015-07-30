@@ -1,0 +1,222 @@
+/**
+ * JavaCC template file created by SF JavaCC plugin 1.5.17+ wizard for JavaCC 1.5.0+
+ */options{  JDK_VERSION = "1.5";  static = true;
+  }PARSER_BEGIN(CSAWQueryGrammar)package iitb.CSAW.Query.Parser;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import iitb.CSAW.Query.IQuery;
+import iitb.CSAW.Query.ContextQuery.Window;
+import iitb.CSAW.Query.MatcherQuery.Exist;
+import iitb.CSAW.Query.MatcherQuery;
+import iitb.CSAW.Query.TokenLiteralQuery;
+import iitb.CSAW.Query.AtomQuery;
+import iitb.CSAW.Query.RootQuery;
+import iitb.CSAW.Query.EntityLiteralQuery;
+import iitb.CSAW.Query.TypeBindingQuery;
+import iitb.CSAW.Query.PhraseQuery;
+import iitb.CSAW.Query.ContextQuery;
+
+/**
+ * JavaCC class for parsing query strings to generate {@link RootQuery}.
+ * Compiling this class creates the java code for the parser which is required by {@link QueryParser} 
+ * @author devshree
+ * @since 15 Nov 2010
+ */
+ @SuppressWarnings("all")
+public class CSAWQueryGrammar{
+	static int queryId = 0;
+
+	static int numContextVars = 0;
+    public static void main(String args []) throws ParseException  {    CSAWQueryGrammar cqg = new CSAWQueryGrammar(System.in);    while (true)    {      System.out.println("Reading from standard input...");      try      {        switch (cqg.start())        {          case 0 :           System.out.println("OK.");          break;          case 1 :           System.out.println("Goodbye.");          break;          default :           break;        }      }      catch (Exception e)      {        System.out.println("NOK.");        System.out.println(e.getMessage());        CSAWQueryGrammar.ReInit(System.in);      }      catch (Error e)      {        System.out.println("Oops.");        System.out.println(e.getMessage());        break;      }    }  }}PARSER_END(CSAWQueryGrammar)SKIP :{  " "| "\r"| "\t"}TOKEN : /* OPERATORS */{
+  < OPR  : (< PLUS > | < MINUS >) > | < #PLUS : "+" >| < #MINUS : "-" >}
+TOKEN :
+{
+	
+    < COMMA : "," >
+|   < QUOTE : "\"" >
+|   < UNDERSCORE : "_" >
+| 	< ENTBEG : "{" >
+| 	< ENTEND : "}" >
+| 	< TYPBEG : "[" >
+|   < TYPEND : "]" >
+|   < CONBEG : "(" >
+|   < CONEND : ")" >
+|   < OW: "ow" >
+|   < UW: "uw" >
+}
+TOKEN :{  < CONSTANT : (< DIGIT >)+ >| < #DIGIT : [ "0"-"9" ] >
+| < #ALPHABET: ["a" - "z"] >
+| < #CAPSALPHABET: ["A" - "Z"] >
+| < WORD: ( <DIGIT> | <ALPHABET> | <CAPSALPHABET> | < UNDERSCORE >)+ >}
+
+
+int start() :
+{
+  	numContextVars = 0;
+	RootQuery q;
+}
+{
+  	q = Query() "\n"
+	{
+	  	System.out.println(q);		return 0;
+	}
+|
+	"\n"
+	{		return 1;
+	}
+
+}
+
+RootQuery parse() :
+{
+  RootQuery q;
+  numContextVars = 1;}
+{
+  q = Query()
+  {	return q;
+  }}
+
+
+RootQuery Query() :
+{
+  RootQuery q;
+  List<ContextQuery > cqs = new ArrayList<ContextQuery >();
+  ContextQuery cq;}
+{	(	  cq = contextQuery()
+	  {		cqs.add(cq);
+		numContextVars++;
+	  }
+	)+
+	{
+	  q = new RootQuery(String.valueOf(queryId++));
+	  for(ContextQuery conq : cqs)
+	  		q.contexts.add(conq);	  return q;
+	}	
+}
+
+ContextQuery contextQuery():
+{
+  ContextQuery cq;
+  Token slop;}
+{	(	 < UW > <CONBEG > (slop = < CONSTANT>) (cq = windowQuery(Window.unordered, Integer.parseInt(slop.toString()))) < CONEND > 
+	|
+	 < OW > <CONBEG > (slop = < CONSTANT>) (cq = windowQuery(Window.ordered, Integer.parseInt(slop.toString()))) < CONEND >
+	)
+	{
+	 	return cq;
+	}
+}
+
+ContextQuery windowQuery(Window w, int slop) :
+{	ContextQuery cq;
+	List<MatcherQuery> ms = new ArrayList<MatcherQuery >();
+	MatcherQuery mq;
+}
+{
+  	(
+	  mq = matcher()
+	  {
+		ms.add(mq);
+	  }
+	)+	{
+		cq = new ContextQuery("var"+numContextVars, w, slop);
+		for(MatcherQuery q : ms)
+			cq.matchers.add(q);			 
+		return cq;
+	}
+}
+
+MatcherQuery matcher() :
+{
+Exist e = Exist.may;
+MatcherQuery aq;  }
+{	( e = opr())? (aq = atomMatcher(e) | < QUOTE > aq = phraseMatcher(e) < QUOTE >)
+	{
+		return aq;
+	}
+	
+}
+
+PhraseQuery phraseMatcher(Exist e) :
+{
+  List<AtomQuery > atoms = new ArrayList<AtomQuery >();
+  AtomQuery aq;}{
+   ( aq = atomMatcher(e)  
+   {		atoms.add(aq);
+   }
+ 	)+
+   
+   {		PhraseQuery pq = new PhraseQuery(e);
+		for(AtomQuery a: atoms)
+			pq.atoms.add(a);
+		return pq;
+   }}
+  
+AtomQuery atomMatcher(Exist e) :
+{
+  AtomQuery ca = null;}
+{
+  
+  ca = literal(e)
+	{		return ca;
+	}
+   | ca =  entity(e)
+	{
+		return ca;
+	}
+    | ca = typebinding(e)
+    {
+		return ca;
+	}
+}
+
+TokenLiteralQuery literal(Exist e) :
+{	Token token;
+}
+{
+    token =  < WORD >	{
+	    e = (e !=null) ? e : Exist.may; 
+	  	return new TokenLiteralQuery(token.toString(),e);
+	}	
+}
+
+EntityLiteralQuery entity(Exist e) :
+{	Token token;
+}
+{	< ENTBEG > token =  < WORD > <ENTEND >
+	{
+		e = (e !=null) ? e : Exist.may;
+		return new EntityLiteralQuery(token.toString(),e);
+	}	
+}
+
+TypeBindingQuery typebinding(Exist e) :
+{
+	Token token;
+}
+{
+	< TYPBEG > token =  < WORD > < TYPEND >
+	{
+
+	  	if(e != Exist.must)
+	  	{
+	  	  // The type binding is always compulsory. Constraint is enforced in the constructor of TypeBindingQuery 
+			System.out.println("A type binding is always compulsory. Changing the Exist constraint from "+e+" to "+Exist.must+" for "+token.toString());
+	  	}
+	  	return new TypeBindingQuery("var",token.toString());
+	}	
+}
+
+
+Exist opr() :
+{}
+{	token = < OPR >
+	{
+	  if(token.toString().equals("+"))		return Exist.valueOf(Exist.class, "must");
+	  else if(token.toString().equals("-"))
+		return Exist.valueOf(Exist.class, "not");
+	}
+}
+
